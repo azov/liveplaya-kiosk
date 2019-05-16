@@ -1,0 +1,12 @@
+# This should be in ~/.config/lxsession/LXDE-pi/autostart
+@lxpanel --profile LXDE-pi
+@pcmanfm --desktop --profile LXDE-pi
+@xscreensaver -no-splash
+@point-rpi
+@xset s noblank
+@xset s off
+@xset -dpms 
+@unclutter -idle 1
+
+@/usr/bin/chromium-browser --kiosk --incognito --noerrdialogs --disable-infobars --disable-session-crashed-bubble http://127.0.0.1:8080
+

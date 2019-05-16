@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>LivePlaya Kiosk</title>
+    <style>
+    body {
+        overflow: hidden;
+        background: #000;
+    }
+    #map {
+        position: absolute; 
+        top: 0px; 
+        left: 30%; 
+        right: 0px; 
+        bottom: 0px;
+        box-sizing: border-box;
+    }
+
+    #list {
+        color: #00ff00;
+        font-family: monospace;
+        font-size: 14pt;
+        position: absolute; 
+        background: #000;
+        left: 0pt;
+        top: 0pt; 
+        width: 30%;
+        bottom: 0pt;
+        padding: 5pt;
+        border-right: solid #ccc 1px;
+        overflow: hidden;
+    }
+
+    #list span.name {
+        display: block;
+        font-weight: bold
+    }
+
+    #list span.status {
+        display: block;
+        font-size: 80%
+    }
+
+    #info {
+        display: hidden;
+        position: absolute; 
+        top: 15px; 
+        left: 15px; 
+        color: rgba(0,255,0,0.9);
+        background: rgba(0,0,0,0.5); 
+        padding: 5px;
+        font-size: 18px;
+        font-family: monospace;
+        overflow: hidden;
+        white-space: pre;
+    }
+
+    #log {
+        position: absolute; 
+        width: 500px; 
+        bottom: 15px; 
+        right: 15px; 
+        color: rgba(0,255,0,0.9);
+        background: rgba(0,0,0,0.5);
+        padding: 5px;
+        font-size: 10px;
+        font-family: monospace;
+        white-space: pre;
+        overflow: hidden;
+    }
+
+    #logcontent {
+        position: absolute;
+        bottom: 15px;
+    }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<div id="list"></div>
+<div id="info"></div>
+<div id="log"></div>
+<script src="app.js"></script>
+</body>
+</html>
