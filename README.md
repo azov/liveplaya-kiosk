@@ -1,4 +1,4 @@
-# LivePlaya Kiosk
+# LivePlaya/WTF Kiosk
 
 ## Components
 

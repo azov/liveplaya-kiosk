@@ -1,110 +1,85 @@
-#![type_length_limit = "4194304"]
-use clap::{crate_version, value_t, App, AppSettings, Arg};
-use liveplaya::logger;
-use log::info;
+#![allow(dead_code)]
+use clap::Parser;
 
-mod webui;
+mod core;
 
-fn main() {
-    const APPNAME: &'static str = "LivePlaya Kiosk";
+mod app;
+pub mod aprs;
+mod aprs_is;
+mod aprs_serial;
+mod clockpos;
+mod data;
+mod err;
+mod geo;
+pub mod io;
+mod motion;
+pub(crate) mod sync;
+mod svc;
+mod time;
+mod units;
+mod util;
+mod webapi;
 
-    let args = App::new(APPNAME)
-        .setting(AppSettings::ColoredHelp)
-        .setting(AppSettings::UnifiedHelpMessage)
-        .setting(AppSettings::DeriveDisplayOrder)
-        .version(crate_version!())
-        .version_message("Print version and exit")
-        .help_message("Print help message and exit")
-        .arg(
-            Arg::with_name("verbose")
-                .long("verbose")
-                .short("v")
-                .global(true)
-                .help("Enable verbose log output"),
-        )
-        .arg(
-            Arg::with_name("nocolor")
-                .long("nocolor")
-                .global(true)
-                .help("Disable colors in log output"),
-        )
-        .arg(
-            Arg::with_name("timestamp")
-                .long("timestamp")
-                .global(true)
-                .help("Enable timestamps in log output"),
-        )
-        .arg(
-            Arg::with_name("log")
-                .long("log")
-                .takes_value(true)
-                .help("APRS log file with all received packets"),
-        )
-        // .arg(Arg::with_name("digest")
-        //      .long("digest")
-        //      .takes_value(true)
-        //      .help("APRS log file with a filtered set of packets relevant to the current state"))
-        .arg(
-            Arg::with_name("aprsis")
-                .long("aprsis")
-                .takes_value(true)
-                .help("APRS IS server URL & port"),
-        )
-        .arg(
-            Arg::with_name("tty")
-                .long("tty")
-                .takes_value(true)
-                .help("Read from given serial device"),
-        )
-        .arg(
-            Arg::with_name("baudrate")
-                .long("baudrate")
-                .takes_value(true)
-                .help("Baud rate"),
-        )
-        .arg(
-            Arg::with_name("httpport")
-                .long("httpport")
-                .takes_value(true)
-                .help("Listen the a given port"),
-        )
-        .arg(
-            Arg::with_name("docroot")
-                .long("docroot")
-                .takes_value(true)
-                .help("Serve files from given directory"),
-        )
-        .get_matches();
+use crate::core::Result;
 
-    logger::init(
-        args.occurrences_of("verbose") > 0,
-        args.occurrences_of("nocolor") > 0,
-        args.occurrences_of("timestamp") > 0,
-    );
 
-    let http_port = value_t!(args.value_of("httpport"), u16).unwrap_or(8080);
-    let log_file = args.value_of("log");
-    let tty = args.value_of("tty");
-    let baudrate = value_t!(args.value_of("baudrate"), u32).unwrap_or(9600);
-    let aprsis_server = args.value_of("aprsis");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-    info!("{} v{}", APPNAME, crate_version!());
 
-    let mut server = liveplaya::server::new();
+#[derive(clap::Parser)]
+#[command(author, version, about, long_about = None, disable_colored_help = false)]
+struct Args {
+    /// Enable verbose log output
+    #[arg(short, long, default_value_t = false, env, global = true)]
+    verbose: bool,
 
-    server.http_port(http_port).configure_ui(webui::configure);
+    /// Enable timestamps log output
+    #[arg(long, default_value_t = false, global = true)]
+    log_timestamps: bool,
 
-    if let Some(tty) = tty {
-        server.aprs_tnc(tty, baudrate);
-    }
+    /// Location of data files directory
+    #[arg(long, value_name = "DIR", env, alias = "dataroot")]
+    data: Option<std::path::PathBuf>, // this replaces --log and --digest
 
-    if let Some(path) = log_file {
-        server.log(path);
-    }
+    /// APRS IS server URL & port
+    #[arg(long, value_name = "URL", env)]
+    aprsis: Option<String>,
 
-    if let Some(addr) = aprsis_server {
-        server.aprs_is(addr);
-    }
+    /// Read from this serial device
+    #[arg(long, value_name = "URL", env)]
+    tty: Option<String>,
 
-    server.run();
+    /// TTY baud rate
+    #[arg(long, value_name = "URL", env)]
+    baudrate: Option<u16>,
+
+    /// Serve HTTP requests from this port
+    #[arg(
+        long,
+        value_name = "PORT",
+        default_value_t = 8080,
+        env,
+        alias = "httpport"
+    )]
+    httpport: u16,
+
+    /// Serve web files from this directory
+    #[arg(long, value_name = "URL", env, alias = "docroot")]
+    wwwroot: Option<std::path::PathBuf>,
 }
+
+pub fn main() -> Result<()> {
+    let args = Args::parse();
+
+    if args.verbose {
+        std::env::set_var("RUST_LOG", "debug");
+    } else if let Err(_) = std::env::var("RUST_LOG") {
+        std::env::set_var("RUST_LOG", "info");
+    }
+    env_logger::init();
+    log::debug!("debug logging enabled");
+    log::info!("version: {}", VERSION);
+
+    app::run(args.httpport, args.aprsis, args.tty, args.baudrate)
+}
+
