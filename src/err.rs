@@ -33,11 +33,17 @@ pub enum Error {
     #[error("APRS_TTY {tty}: {err}")]
     ReadTTY { tty: String, err: String },
 
+    #[error("bad request: {0}")]
+    BadRequest(String),
+
     #[error("{context}: disconnected")]
     Disconnected{context: String},
 
     #[error("{context}: busy")]
     Busy{context: String},
+
+    #[error("{context}: cancelled")]
+    Cancelled{context: String},
 
     #[error("{0}")]
     Other(String),
@@ -59,6 +65,10 @@ impl Error {
 
     pub fn busy(v: impl ToString) -> Self {
         Error::Busy{context: v.to_string()}
+    }
+
+    pub fn cancelled(v: impl ToString) -> Self {
+        Error::Cancelled{context: v.to_string()}
     }
 
     pub fn to_json(&self) -> JsonValue {

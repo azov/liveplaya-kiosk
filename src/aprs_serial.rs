@@ -1,71 +1,93 @@
-use crate::core::Timestamp;
-use crate::err::*;
-use crate::svc::*;
+use std::borrow::Cow;
+use tokio_serial::{SerialPortBuilderExt, SerialStream};
 
-use serial::{self, SerialPort};
-use std::io::{BufRead, BufReader, Error as IoError, ErrorKind as IoErrorKind};
+use tokio::{
+    io::{AsyncBufReadExt, BufReader},
+    select,
+    sync::mpsc,
+};
+use tokio_util::sync::CancellationToken;
 
-fn is_timeout(res: std::result::Result<String, IoError>) -> bool {
-    if let Err(e) = res {
-        if e.kind() == IoErrorKind::TimedOut {
-            return true
-        }
-    }
-    false
-}
+pub async fn run<'a>(
+    tty: impl Into<Cow<'a, str>>,
+    baud_rate: u32,
+    tx: mpsc::Sender<String>,
+    stop: CancellationToken,
+) {
+    let tty = tty.into();
+    while !stop.is_cancelled() {
+        let port_res = tokio_serial::new(tty.as_ref(), baud_rate)
+            .data_bits(tokio_serial::DataBits::Eight)
+            .parity(tokio_serial::Parity::None)
+            .stop_bits(tokio_serial::StopBits::One)
+            .flow_control(tokio_serial::FlowControl::None)
+            .open_native_async();
 
-pub fn spawn(tasks: Tasks, tty: String, baudrate: u16) -> JoinHandle {
-    std::thread::spawn(move || run(tasks, tty, baudrate))
-}
-
-pub fn run(tasks: Tasks, tty: String, baudrate: u16) -> Result<()> {
-    let settings = serial::PortSettings {
-        baud_rate: serial::BaudRate::from_speed(baudrate as usize),
-        char_size: serial::Bits8,
-        parity: serial::ParityNone,
-        stop_bits: serial::Stop1,
-        flow_control: serial::FlowNone,
-    };
-
-    'outer: loop {
-        log::debug!(
-            "Opening {}, baud rate {}...",
-            tty,
-            settings.baud_rate.speed()
-        );
-    
-        let mut serport = serial::open(&tty).map_err(|e| Error::OpenTTY {
-            tty: tty.clone(),
-            err: e.to_string(),
-        })?;
-        serport.configure(&settings).map_err(|e| Error::OpenTTY {
-            tty: tty.clone(),
-            err: e.to_string(),
-        })?;
-        // serport
-        //     .set_timeout(Duration::from_secs(1))
-        //     .map_err(|err| Error::Open {
-        //         tty: tty.clone(),
-        //         err,
-        //     })?;
-    
-        log::info!("Opened {}, baud rate {}", tty, settings.baud_rate.speed());
-    
-        'inner: for line in BufReader::new(serport).lines() {
-            match line {
-                Ok(line) => {
-                    let received = Timestamp::now();
-                    let data = line;
-                    tasks.submit(Task::PostAprs(AprsPacket { received, data}))?;
-                },
-                Err(e) => {
-                    if e.kind() == IoErrorKind::TimedOut {
-                        continue 'inner; // Ignore timeouts
-                    }
-                    std::thread::sleep(std::time::Duration::from_secs(1));
-                    continue 'outer;
-                }
+        match port_res {
+            Ok(stream) => {
+                let tty = tty.as_ref();
+                read_packets(tty, stream, tx.clone(), &stop).await;
+            }
+            Err(e) => {
+                let tty = tty.as_ref();
+                log::error!("{}: error opening serial port: {}", tty, e);
             }
         }
+        sleep(std::time::Duration::from_secs(3), &stop).await;
+    }
+}
+
+async fn read_packets(
+    tty: &str,
+    stream: SerialStream,
+    mut packet_tx: mpsc::Sender<String>,
+    stop: &CancellationToken,
+) {
+    let mut reader = BufReader::new(stream);
+
+    loop {
+        let mut line = String::new();
+        let read_res = select! {
+            _ = stop.cancelled() => return,
+            r = reader.read_line(&mut line) => r
+        };
+        match read_res {
+            Ok(bytes_read) => {
+                if bytes_read == 0 || line.chars().all(|c| c.is_whitespace()) {
+                    continue; // skip whitespace
+                }
+                log::debug!("{}: recv {:?}", tty, line);
+                notify(line, &mut packet_tx, &stop).await;
+            }
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::TimedOut {
+                    // Ignore timeouts.
+                    // But should we, maybe reconnect is better?...
+                    continue;
+                }
+                log::error!("{}: error receiving data: {}", tty, e);
+                break;
+            }
+        }
+        log::debug!("{}: exit read loop", tty);
+    }
+}
+
+async fn notify(packet: String, tx: &mut mpsc::Sender<String>, stop: &CancellationToken) {
+    let send_res = select! {
+        _ = stop.cancelled() => return,
+        r = tx.send(packet) => r
+    };
+    if let Err(e) = send_res {
+        // Another end of service disconnected, cancelling
+        log::debug!("aprs_is reader disconnected, shutting down");
+        stop.cancel();
+    }
+}
+
+async fn sleep(dur: std::time::Duration, stop: &CancellationToken) {
+    select! {
+        _ = stop.cancelled() => return,
+        _ = tokio::time::sleep(dur) => return,
     }
 }

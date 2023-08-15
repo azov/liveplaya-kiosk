@@ -8,17 +8,18 @@ pub mod aprs;
 mod aprs_is;
 mod aprs_serial;
 mod clockpos;
-mod data;
+mod map;
 mod err;
 mod geo;
 pub mod io;
 mod motion;
-pub(crate) mod sync;
+pub(crate) mod twoway;
 mod svc;
 mod time;
 mod units;
 mod util;
 mod webapi;
+mod worker;
 
 use crate::core::Result;
 
@@ -53,6 +54,10 @@ struct Args {
     #[arg(long, value_name = "URL", env)]
     baudrate: Option<u16>,
 
+    /// Print available serial ports and exit
+    #[arg(long, default_value_t=false)]
+    print_ttys: bool,
+
     /// Serve HTTP requests from this port
     #[arg(
         long,
@@ -68,7 +73,8 @@ struct Args {
     wwwroot: Option<std::path::PathBuf>,
 }
 
-pub fn main() -> Result<()> {
+#[tokio::main]
+pub async fn main() -> Result<()> {
     let args = Args::parse();
 
     if args.verbose {
@@ -80,6 +86,10 @@ pub fn main() -> Result<()> {
     log::debug!("debug logging enabled");
     log::info!("version: {}", VERSION);
 
-    app::run(args.httpport, args.aprsis, args.tty, args.baudrate)
+    if args.print_ttys {
+        app::print_ttys()
+    } else {
+        app::run(args.httpport, args.aprsis, args.tty, args.baudrate).await
+    }
 }
 

@@ -1,6 +1,12 @@
-use crate::svc::*;
+use crate::{
+    err::{Error, Result},
+    twoway,
+};
 use actix_web::{self, get, web, App, HttpRequest, HttpResponse, HttpServer, Responder};
+use tokio_util::sync::CancellationToken;
 
+pub type JsonQuery = JsonValue;
+pub use serde_json::{json, Value as JsonValue};
 
 #[get("/")]
 async fn get_index() -> impl Responder {
@@ -15,9 +21,9 @@ async fn get_index() -> impl Responder {
 #[get("/api/v0/")]
 async fn get_view(
     req: HttpRequest,
-    query: web::Query<Query>, /*, urlargs: web::Path<String> */
+    query: web::Query<JsonQuery>, /*, urlargs: web::Path<String> */
 ) -> impl Responder {
-    let query: Query = match query.0.try_into() {
+    let query: JsonQuery = match query.0.try_into() {
         Ok(q) => q,
         Err(e) => {
             return HttpResponse::BadRequest().json(json!({
@@ -27,17 +33,15 @@ async fn get_view(
         }
     };
 
-    let tasks = req.app_data::<Tasks>().unwrap();
-    let (req, res) = Request::new(query);
-    let res = match tasks.submit(Task::GetView(req)) {
-        Ok(_) => res.recv().await,
-        Err(e) => Err(e),
-    };
+    let io = req.app_data::<IO>().unwrap();
+    let res = twoway::request(query, &io.query_sender, &io.stop).await;
     match res {
-        Ok(view) => HttpResponse::Ok().json(json!({
-            "status": "ok",
-            "view": view,
-        })),
+        Ok(res) => HttpResponse::Ok().json(append(
+            res,
+            json!({
+                "status": "ok",
+            }),
+        )),
         Err(e) => {
             log::error!("internal server error: {}", e);
             HttpResponse::InternalServerError().json(json!({
@@ -48,45 +52,34 @@ async fn get_view(
     }
 }
 
-pub struct Server{
+pub async fn run(
     port: u16,
-    back: Tasks,
-}
-impl Server {
-    pub fn new(port: u16, back: Tasks) -> Self {
-        Self{port, back}
-    }
-
-    pub fn run(self) -> Result<()> {
-        let run = async move { self.run_async().await };
-    
-        if let Ok(rth) = tokio::runtime::Handle::try_current() {
-            // have runtime, will run in it
-            rth.block_on(run)
-        } else {
-            // neet to create a new runtime
-            tokio::runtime::Runtime::new()
-                .expect("tokio runtime creation should not fail")
-                .handle()
-                .block_on(run)
-        }
-    }
-    
-    async fn run_async(self) -> Result<()> {
-        HttpServer::new(move || {
-            App::new()
-                .app_data(self.back.clone())
-                .wrap(actix_web::middleware::Logger::new("%a %r %s"))
-                // .service(connect)
-                .service(get_view)
-                .service(get_index)
-        })
-        .bind(("0.0.0.0", self.port))
-        .map_err(|e| Error::OtherWithContext("failed to bind web server", e.to_string()))?
-        .run()
-        .await
-        .map_err(|e| Error::OtherWithContext("failed to run web server", e.to_string()))
-    }
-    
+    query_sender: twoway::Sender<JsonQuery, JsonValue>,
+    stop: CancellationToken,
+) -> Result<()> {
+    let io = IO { query_sender, stop };
+    HttpServer::new(move || {
+        App::new()
+            .app_data(io.clone())
+            .wrap(actix_web::middleware::Logger::new("%a %r %s"))
+            // .service(connect)
+            .service(get_view)
+            .service(get_index)
+    })
+    .bind(("0.0.0.0", port))
+    .map_err(|e| Error::OtherWithContext("failed to bind web server", e.to_string()))?
+    .run()
+    .await
+    .map_err(|e| Error::OtherWithContext("failed to run web server", e.to_string()))
 }
 
+#[derive(Debug, Clone)]
+struct IO {
+    query_sender: twoway::Sender<JsonQuery, JsonValue>,
+    stop: CancellationToken,
+}
+
+fn append(mut a: JsonValue, mut b: JsonValue) -> JsonValue {
+    a.as_object_mut().unwrap().append(b.as_object_mut().unwrap());
+    a
+}

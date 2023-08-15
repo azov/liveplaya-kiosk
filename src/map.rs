@@ -20,8 +20,16 @@ impl Data {
     }
 
     pub fn snapshot(&self, feat: Option<String>) -> Snapshot {
-        Snapshot { feature: feat, data: self }
+        Snapshot {
+            feature: feat,
+            data: self,
+        }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Query {
+    pub feature: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -30,7 +38,6 @@ pub struct Snapshot<'a> {
     data: &'a Data,
 }
 impl<'a> Snapshot<'a> {
-
     pub fn name(&self) -> String {
         "Black Rock City 2023".into()
     }
@@ -58,11 +65,16 @@ impl<'a> Snapshot<'a> {
                 bbox: None,
                 id: None,
                 foreign_members: None,
-                properties: Some(serde_json::json!({
-                    "liveplaya": "poi",
-                    "poi": "beacon",
-                    "name": pr.srccall,
-                }).as_object().unwrap().clone()),
+                properties: Some(
+                    serde_json::json!({
+                        "liveplaya": "poi",
+                        "poi": "beacon",
+                        "name": pr.srccall,
+                    })
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+                ),
             });
         }
 
@@ -73,8 +85,12 @@ impl<'a> Snapshot<'a> {
         }
     }
 
+    pub fn to_json(&self) -> JsonValue {
+        serde_json::to_value(self.to_geojson()).unwrap()
+    }
+
     pub fn to_maplibre_style(&self) -> Option<JsonValue> {
         Some(json!(self.to_geojson()))
     }
-
 }
+
