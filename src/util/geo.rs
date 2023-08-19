@@ -1,40 +1,47 @@
-use crate::core::*;
+use crate::err::{Error, Result};
 
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-pub type Point = LngLat;
 pub type Rect = BBox;
 
-const LNG_MAX: f64 = 180.;
-const LNG_MIN: f64 = -180.;
-const LAT_MAX: f64 = 90.;
-const LAT_MIN: f64 = -90.;
-
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
-pub struct LngLat(f64, f64);
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Point {
+    lng: f64,
+    lat: f64,
+}
 
-impl LngLat {
-    pub const ZERO: Self = Self(0., 0.);
-    pub const BRD_CENTER: Self = Self(-119.202740, 40.787030);
+impl Point {
+    pub const ZERO: Self = Self::unchecked(0., 0.);
+    pub const BRD_CENTER: Self = Self::unchecked(-119.202740, 40.787030);
+    pub const MIN: Self = Self::unchecked(-180., -90.);
+    pub const MAX: Self = Self::unchecked(180., 90.);
 
     pub fn new(lng: f64, lat: f64) -> Result<Self> {
         Self::check_lng(lng)?;
         Self::check_lat(lat)?;
-        Ok(Self(lng, lat))
+        Ok(Self::unchecked(lng, lat))
+    }
+
+    pub const fn unchecked(lng: f64, lat: f64) -> Self {
+        Self { lng, lat }
     }
 
     pub fn from_latlng(latlng: (f64, f64)) -> Result<Self> {
         Self::new(latlng.1, latlng.0)
     }
 
+    pub fn from_lnglat(lnglat: (f64, f64)) -> Result<Self> {
+        Self::new(lnglat.0, lnglat.1)
+    }
+
     pub const fn lng(&self) -> f64 {
-        self.0
+        self.lng
     }
 
     pub const fn lat(&self) -> f64 {
-        self.1
+        self.lat
     }
 
     pub const fn longitude(&self) -> f64 {
@@ -53,38 +60,51 @@ impl LngLat {
         (self.lat(), self.lng())
     }
 
+    pub fn round_to_about_meter(&self) -> Self {
+        Self::unchecked(
+            Self::_round_to_about_meter(self.lng()),
+            Self::_round_to_about_meter(self.lat()),
+        )
+    }
+
     pub fn haversine_destination(&self, bearing_deg: f64, dist_m: f64) -> Self {
         let orig = ::geo::Point::new(self.lng(), self.lat());
         let dest = ::geo::HaversineDestination::haversine_destination(&orig, bearing_deg, dist_m);
-        Self(dest.x(), dest.y())
+        Self::unchecked(dest.x(), dest.y())
     }
 
-    pub fn haversine_distance_m(&self, other: LngLat) -> f64 {
+    pub fn haversine_distance_m(&self, other: Point) -> f64 {
         let orig = ::geo::Point::new(self.lng(), self.lat());
         let dest = ::geo::Point::new(other.lng(), other.lat());
         ::geo::HaversineDistance::haversine_distance(&orig, &dest)
     }
 
+    pub fn haversine_bearing_deg(&self, other: Point) -> f64 {
+        let orig = ::geo::Point::new(self.lng(), self.lat());
+        let dest = ::geo::Point::new(other.lng(), other.lat());
+        ::geo::algorithm::HaversineBearing::haversine_bearing(&orig, dest)
+    }
+
     pub fn translate(&self, dlng: f64, dlat: f64) -> Self {
         let mut lng = self.lng() + dlng % 360.;
         let mut lat = self.lat() + dlat % 360.;
-        if lng > LNG_MAX {
+        if lng > Point::MAX.lng() {
             lng = lng - 360.;
         }
-        if lng < LNG_MIN {
+        if lng < Point::MIN.lng() {
             lng = lng + 360.;
         }
-        if lat > LAT_MAX {
+        if lat > Point::MAX.lat() {
             lat = lat - 180.;
         }
-        if lat < LAT_MIN {
+        if lat < Point::MIN.lat() {
             lat = lat + 180.;
         }
-        LngLat(lng, lat)
+        Point::unchecked(lng, lat)
     }
 
     fn check_lat(lat: f64) -> Result<f64> {
-        if lat >= LAT_MIN && lat <= LAT_MAX {
+        if lat >= Self::MIN.lat() && lat <= Self::MAX.lat() {
             Ok(lat)
         } else {
             Err(Error::BadLatitude(lat))
@@ -92,11 +112,16 @@ impl LngLat {
     }
 
     fn check_lng(lng: f64) -> Result<f64> {
-        if lng >= LNG_MIN && lng <= LNG_MAX {
+        if lng >= Self::MIN.lng() && lng <= Self::MAX.lng() {
             Ok(lng)
         } else {
             Err(Error::BadLongitude(lng))
         }
+    }
+
+    fn _round_to_about_meter(v: f64) -> f64 {
+        let k = 100000.;
+        (v * k).round() / k
     }
 }
 
@@ -121,13 +146,13 @@ impl LngLat {
     }
 }
 
-impl std::fmt::Display for LngLat {
+impl std::fmt::Display for Point {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:.5},{:.5}", self.0, self.1)
+        write!(f, "{:.5},{:.5}", self.lng(), self.lat())
     }
 }
 
-impl TryFrom<(f64, f64)> for LngLat {
+impl TryFrom<(f64, f64)> for Point {
     type Error = Error;
 
     fn try_from(v: (f64, f64)) -> std::result::Result<Self, Self::Error> {
@@ -135,32 +160,47 @@ impl TryFrom<(f64, f64)> for LngLat {
     }
 }
 
-impl Into<(f64, f64)> for LngLat {
+impl Into<(f64, f64)> for Point {
     fn into(self) -> (f64, f64) {
         self.lnglat()
     }
 }
 
-impl Into<::geojson::Value> for LngLat {
+impl Into<::geojson::Value> for Point {
     fn into(self) -> ::geojson::Value {
         ::geojson::Value::Point(vec![self.lng(), self.lat()])
     }
 }
 
-impl<'de> serde::Deserialize<'de> for LngLat {
-    fn deserialize<D>(deser: D) -> std::result::Result<LngLat, D::Error>
+impl serde::Serialize for Point {
+    fn serialize<S>(&self, ser: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use ::serde::ser::SerializeTuple;
+        let v = self.lnglat();
+        let mut state = ser.serialize_tuple(2)?;
+        state.serialize_element(&v.0)?;
+        state.serialize_element(&v.1)?;
+        state.end()
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Point {
+    fn deserialize<D>(deser: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         let v = <(f64, f64)>::deserialize(deser)?;
-        v.try_into().map_err(|e| serde::de::Error::custom(e))
+        Self::from_lnglat(v).map_err(|e| serde::de::Error::custom(e))
     }
 }
 
+
 #[derive(Debug, Clone)]
 pub struct BBox {
-    min: LngLat,
-    max: LngLat,
+    min: Point,
+    max: Point,
 }
 
 impl BBox {
@@ -169,11 +209,11 @@ impl BBox {
     }
 
     pub fn from_two_points(pt1: Point, pt2: Point) -> Self {
-        let min = LngLat(
+        let min = Point::unchecked(
             f64::min(pt1.lng(), pt2.lng()),
             f64::min(pt1.lat(), pt1.lat()),
         );
-        let max = LngLat(
+        let max = Point::unchecked(
             f64::max(pt1.lng(), pt2.lng()),
             f64::max(pt1.lat(), pt2.lat()),
         );
@@ -193,8 +233,8 @@ impl BBox {
     }
 
     pub fn from_tuple(v: (f64, f64, f64, f64)) -> Result<Self> {
-        let min = LngLat::try_from((f64::min(v.0, v.2), f64::min(v.1, v.3)))?;
-        let max = LngLat::try_from((f64::max(v.0, v.2), f64::max(v.1, v.3)))?;
+        let min = Point::try_from((f64::min(v.0, v.2), f64::min(v.1, v.3)))?;
+        let max = Point::try_from((f64::max(v.0, v.2), f64::max(v.1, v.3)))?;
         Ok(Self { min, max })
     }
 
@@ -229,8 +269,8 @@ impl BBox {
         self.max
     }
 
-    pub fn center(&self) -> LngLat {
-        LngLat(
+    pub fn center(&self) -> Point {
+        Point::unchecked(
             (self.min.lng() + self.max.lng()) / 2.,
             (self.min.lat() + self.max.lat()) / 2.,
         )
@@ -268,8 +308,8 @@ impl BBox {
         let w = w1.min(w2);
         let h = h1.min(h2);
 
-        let min = LngLat::new(c.lng() - w, c.lat() - h).unwrap();
-        let max = LngLat::new(c.lng() - w, c.lat() - h).unwrap();
+        let min = Point::new(c.lng() - w, c.lat() - h).unwrap();
+        let max = Point::new(c.lng() - w, c.lat() - h).unwrap();
         Self::new(min, max)
     }
 
@@ -281,8 +321,8 @@ impl BBox {
     }
 
     pub const MAX: BBox = BBox {
-        min: LngLat(LNG_MIN, LAT_MIN),
-        max: LngLat(LNG_MAX, LAT_MAX),
+        min: Point::MIN,
+        max: Point::MAX,
     };
 }
 
@@ -319,8 +359,8 @@ impl<'de> serde::Deserialize<'de> for BBox {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LineString(Vec<LngLat>);
+#[derive(Debug, Clone)]
+pub struct LineString(Vec<Point>);
 
 impl LineString {
     pub fn new(points: Vec<Point>) -> Self {
@@ -334,22 +374,22 @@ impl LineString {
 
     pub fn from_latlngs(points: impl Iterator<Item = (f64, f64)>) -> Result<Self> {
         points
-            .map(|v| LngLat::try_from((v.1, v.0)))
-            .collect::<Result<Vec<LngLat>>>()
+            .map(|v| Point::try_from((v.1, v.0)))
+            .collect::<Result<Vec<Point>>>()
             .map(|v| Self(v))
     }
 
     pub fn from_latlng_refs<'a>(points: impl Iterator<Item = &'a (f64, f64)>) -> Result<Self> {
         points
-            .map(|v| LngLat::try_from((v.1, v.0)))
-            .collect::<Result<Vec<LngLat>>>()
+            .map(|v| Point::try_from((v.1, v.0)))
+            .collect::<Result<Vec<Point>>>()
             .map(|v| Self(v))
     }
 
     pub fn from_lnglat_refs<'a>(points: impl Iterator<Item = &'a (f64, f64)>) -> Result<Self> {
         points
-            .map(|v| LngLat::try_from(v.clone()))
-            .collect::<Result<Vec<LngLat>>>()
+            .map(|v| Point::try_from(v.clone()))
+            .collect::<Result<Vec<Point>>>()
             .map(|v| Self(v))
     }
 
@@ -393,7 +433,7 @@ impl Into<::geojson::Value> for LineString {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MultiLineString(Vec<LineString>);
 
 impl MultiLineString {
@@ -403,7 +443,7 @@ impl MultiLineString {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Polygon {
     exterior: LineString,
     holes: Vec<LineString>,
@@ -505,22 +545,22 @@ mod tests {
     #[test]
     fn test_invalid_lnglat() {
         assert!(matches!(
-            LngLat::try_from((-190., 0.)),
+            Point::try_from((-190., 0.)),
             Err(Error::BadLongitude(v)) if v == -190.
         ));
 
         assert!(matches!(
-            LngLat::try_from((0., 100.)),
+            Point::try_from((0., 100.)),
             Err(Error::BadLatitude(v)) if v == 100.
         ));
 
         assert!(matches!(
-            LngLat::try_from((0., f64::INFINITY)),
+            Point::try_from((0., f64::INFINITY)),
             Err(Error::BadLatitude(v)) if v == f64::INFINITY
         ));
 
         assert!(matches!(
-            LngLat::try_from((f64::NEG_INFINITY, 0.)),
+            Point::try_from((f64::NEG_INFINITY, 0.)),
             Err(Error::BadLongitude(v)) if v == f64::NEG_INFINITY
         ));
     }
@@ -569,7 +609,7 @@ mod prj {
     }
 
     fn unproject_point(pt: ::geo::Coord) -> LngLat {
-        LngLat::try_from((pt.x, pt.y)).unwrap()
+        Point::try_from((pt.x, pt.y)).unwrap()
     }
 
     fn project_line(line: LineString) -> ::geo::LineString {
@@ -596,3 +636,5 @@ mod prj {
         }
     }
 }
+
+pub type LngLat = (f64, f64);

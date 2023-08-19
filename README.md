@@ -1,8 +1,15 @@
-# TechnoGecko WTF + LivePlaya Kiosk
+Local build: 
 
-## Quickstart
+```shell
+    cargo build
+    cargo run -- --help 
+```
+(then follow the commands)
 
-Install Docker and run `make` from the root directory. This should build 
-armv7 executable in the `target` dir (but currently fails on M2 Macs). 
 
-Alternatively you can try to run it locally with `cargo run`.
+Docker build (this should cross-compile for Raspberry PI):
+
+```shell
+
+
+```

@@ -1,0 +1,20 @@
+@import '../layouts/Base.scss';
+
+.log {
+    font-family: monospace;
+}
+.log tbody td {
+    vertical-align: top;
+    white-space: nowrap;
+  }
+  
+  .log tbody tr.error td {
+    color:$fgcolor03,
+  }
+  
+  .log tbody tr.info td {
+    color: $fgcolor02,
+  }
+  
+  
+  

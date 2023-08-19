@@ -1,14 +1,27 @@
-use crate::core::*;
+use crate::aprs;
+use crate::{
+    aprs::Log,
+    brc::BlackRockCity,
+    err::{Error, Result},
+    util::{geo::*, time::*},
+};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value as JsonValue};
 
 #[derive(Debug)]
 pub struct Data {
+    city: BlackRockCity,
     aprslog: aprs::Log,
 }
 
 impl Data {
     pub fn new() -> Self {
+        let centerlines =
+            serde_json::from_str::<crate::bmorg::Document>(crate::bmorg::BRC2023_CENTERLINES)
+                .unwrap();
+        let city: BlackRockCity = centerlines.try_into().unwrap();
         let aprslog = aprs::Log::new();
-        Data { aprslog }
+        Data { aprslog, city }
     }
 
     // pub fn update_base(&mut self, map: Map) {
@@ -16,7 +29,7 @@ impl Data {
     // }
 
     pub fn update_aprs(&mut self, received: Timestamp, data: String) -> Result<()> {
-        self.aprslog.add(received, data)
+        self.aprslog.push(received, data)
     }
 
     pub fn snapshot(&self, feat: Option<String>) -> Snapshot {
@@ -25,11 +38,6 @@ impl Data {
             data: self,
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Query {
-    pub feature: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -46,6 +54,14 @@ impl<'a> Snapshot<'a> {
         Timestamp::now()
     }
 
+    pub fn center(&self) -> Point {
+        self.data.city.center()
+    }
+
+    // pub fn bounds(&self) -> BBox {
+    //     self.data.city.bounds()
+    // }
+
     pub fn description(&self) -> Option<String> {
         Some(format!(
             "Seen {} APRS stations",
@@ -53,13 +69,18 @@ impl<'a> Snapshot<'a> {
         ))
     }
 
+    pub fn aprs_log(&self) -> &aprs::Log {
+        &self.data.aprslog
+    }
+
     fn to_geojson(&self) -> geojson::FeatureCollection {
         let mut features: Vec<geojson::Feature> = vec![];
-        for (_ts, pr) in self.data.aprslog.positions() {
+        for (_ts, pr) in self.data.aprslog.last_positions() {
+            let loc = pr.pos.location;
             features.push(geojson::Feature {
                 geometry: Some(geojson::Geometry {
                     bbox: None,
-                    value: pr.pos.location.into(),
+                    value: loc.into(),
                     foreign_members: None,
                 }),
                 bbox: None,
@@ -69,7 +90,8 @@ impl<'a> Snapshot<'a> {
                     serde_json::json!({
                         "liveplaya": "poi",
                         "poi": "beacon",
-                        "name": pr.srccall,
+                        "name": pr.src_callsign,
+                        "location": self.data.city.rgeocode(loc),
                     })
                     .as_object()
                     .unwrap()
@@ -80,7 +102,22 @@ impl<'a> Snapshot<'a> {
 
         geojson::FeatureCollection {
             bbox: None,
-            foreign_members: None,
+            foreign_members: Some(
+                json!({
+                    "name": self.name(),
+                    "description": self.description(),
+                    "timeStr": self.timestamp().to_iso_string_utc(),
+                    "bearingDeg": 45.,
+                    "center": self.center(),
+                    // "bounds": BBox;
+                    // "zoom": number;
+
+                    "log": self.data.aprslog.recent_entries().collect::<Vec<&aprs::LogEntry>>(),
+                })
+                .as_object()
+                .unwrap()
+                .clone(),
+            ),
             features,
         }
     }
@@ -93,4 +130,3 @@ impl<'a> Snapshot<'a> {
         Some(json!(self.to_geojson()))
     }
 }
-

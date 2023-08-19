@@ -1,6 +1,6 @@
 use geojson::JsonValue;
+use serde::{Deserialize, Serialize};
 use thiserror;
-use serde::{Serialize, Deserialize};
 
 #[derive(thiserror::Error, Debug, Clone, Serialize, Deserialize)]
 pub enum Error {
@@ -33,17 +33,35 @@ pub enum Error {
     #[error("APRS_TTY {tty}: {err}")]
     ReadTTY { tty: String, err: String },
 
+    #[error("can't parse APRS packet {what}: {why}")]
+    AprsParse { what: String, why: String },
+
+    #[error("APRS packets are supposed to be in chronological order; {new_ts} < {last_ts}")]
+    AprsOrder {
+        new_ts: String,
+        last_ts: String,
+    },
+
     #[error("bad request: {0}")]
     BadRequest(String),
 
-    #[error("{context}: disconnected")]
-    Disconnected{context: String},
+    #[error("I/O error: {0}")]
+    IOError(String),
 
-    #[error("{context}: busy")]
-    Busy{context: String},
+    #[error("{msg}")]
+    OutOfRange{msg: String},
 
-    #[error("{context}: cancelled")]
-    Cancelled{context: String},
+    #[error("timed out")]
+    TimedOut,
+
+    #[error("disconnected")]
+    Disconnected,
+
+    #[error("busy")]
+    Busy,
+
+    #[error("cancelled")]
+    Cancelled,
 
     #[error("{0}")]
     Other(String),
@@ -59,25 +77,39 @@ impl Error {
         Error::Other(v.to_string())
     }
 
-    pub fn disconnected(v: impl ToString) -> Self {
-        Error::Disconnected{context: v.to_string()}
-    }
-
-    pub fn busy(v: impl ToString) -> Self {
-        Error::Busy{context: v.to_string()}
-    }
-
-    pub fn cancelled(v: impl ToString) -> Self {
-        Error::Cancelled{context: v.to_string()}
-    }
-
     pub fn to_json(&self) -> JsonValue {
         serde_json::json!({
             "status": "error",
             "message": self.to_string(),
         })
     }
+}
 
+impl std::convert::From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        if e.kind() == std::io::ErrorKind::TimedOut {
+            Self::TimedOut
+        } else {
+            Self::IOError(e.to_string())
+        }
+    }
+}
+
+impl<T> std::convert::From<tokio::sync::mpsc::error::TrySendError<T>> for Error {
+    fn from(value: tokio::sync::mpsc::error::TrySendError<T>) -> Self {
+        match value {
+            tokio::sync::mpsc::error::TrySendError::Full(_) => Self::Busy,
+            tokio::sync::mpsc::error::TrySendError::Closed(_) => Self::Disconnected,
+        }
+    }
+}
+
+impl<T> std::convert::From<tokio::sync::mpsc::error::SendError<T>> for Error {
+    fn from(value: tokio::sync::mpsc::error::SendError<T>) -> Self {
+        match value {
+            tokio::sync::mpsc::error::SendError(_v) => Self::Disconnected,
+        }
+    }
 }
 
 #[cfg(feature = "wasm")]
@@ -86,7 +118,6 @@ impl Into<wasm_bindgen::JsValue> for Error {
         wasm_bindgen::JsValue::from_str(self.to_string().as_str())
     }
 }
-
 
 // Verify error types implement appropriate traits
 const _: () = {

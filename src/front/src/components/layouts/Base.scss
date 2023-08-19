@@ -1,0 +1,41 @@
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#root {
+  position: absolute;
+  left: 0px;
+  right: 0px;
+  bottom: 0px;
+  top: 0px;
+  padding: 0px;
+  overflow: hidden;
+}
+
+.placeholder {
+    background-image: linear-gradient(45deg, #808080 25%, transparent 25%), linear-gradient(-45deg, #808080 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #808080 75%), linear-gradient(-45deg, transparent 75%, #808080 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+}
+
+$menu-height: 32px;
+$bgcolor01: #121212;
+$bgcolor02: #535353;
+$fgcolor01:#b3b3b3; 
+$fgcolor02: #1db954;
+$fgcolor03:  #ff5555;
+
+body {
+  color: fgcolor01;
+  background-color: $bgcolor01;
+
+}
+
+
+
+

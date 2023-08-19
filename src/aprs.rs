@@ -1,15 +1,28 @@
-use crate::core::*;
-
+use crate::{
+    err::{Result, Error},
+    motion::Position,
+    util::{
+        geo::Point,
+        time::Timestamp,
+        units::ft2m,
+    },
+};
 use ::aprs::Packet as PacketTrait;
-pub use ::aprs::Symbol as AprsSymbol;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, VecDeque};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Packet {
     Position(PositionReport),
 }
 impl Packet {
-    pub fn parse(data: String) -> Result<Self> {
-        let res = ::fap::Packet::new(data).map_err(|e| Error::Other(e.to_string()))?;
+    pub fn parse(data: impl AsRef<str>) -> Result<Self> {
+        let data = data.as_ref();
+        let res = ::fap::Packet::new(data.to_string()).map_err(|e| Error::AprsParse {
+            what: data.to_string(),
+            why: e.to_string(),
+        })?;
 
         let srccall = res.source();
         let pos = res.position();
@@ -21,8 +34,13 @@ impl Packet {
         let comment = res.comment();
 
         let pos = match pos {
-            None => return Err(Error::msg("not a position update")),
-            Some(pos) => Ok(Position {
+            None => {
+                return Err(Error::AprsParse {
+                    what: data.to_string(),
+                    why: "not a position update".into(),
+                })
+            }
+            Some(pos) => Ok::<Position, Error>(Position {
                 location: Point::new(pos.longitude as f64, pos.latitude as f64)?,
                 location_error_m: pos.precision.map(|v| ft2m(v.as_f64())),
                 heading_deg: course.map(|v| v.as_f64()),
@@ -30,8 +48,8 @@ impl Packet {
             }),
         }?;
 
-        Ok(Self::Position(PositionReport { 
-            srccall: srccall.into(),
+        Ok(Self::Position(PositionReport {
+            src_callsign: srccall.into(),
             pos,
             // symbol,
             comment: comment.map(|v| v.into()),
@@ -40,36 +58,36 @@ impl Packet {
 
     pub fn srccall(&self) -> &str {
         match self {
-            Packet::Position(PositionReport{ srccall, .. }) => srccall.as_str(),
+            Packet::Position(PositionReport {
+                src_callsign: srccall,
+                ..
+            }) => srccall.as_str(),
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PositionReport {
-    pub srccall: String,
+    pub src_callsign: String,
     pub pos: Position,
     // symbol: (u8,u8),
     pub comment: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct LogEntry{
-    ts: Timestamp, 
-    data: String,
-    parsed: std::result::Result<Packet, String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Log {
     /// A map between callsigns and most recent position updates
     lastpos: HashMap<String, (Timestamp, PositionReport)>,
 
-    /// Most recent log entries
-    log: VecDeque<LogEntry>,
+    /// Most recent packets entries
+    recent: VecDeque<(u64, Timestamp, String, Result<Packet>)>,
 
     /// Max number of entries to store
     maxlen: usize,
+
+    /// Next available id
+    nextid: u64,
 }
 
 impl Log {
@@ -77,35 +95,38 @@ impl Log {
         let maxlen = 32;
         Self {
             lastpos: HashMap::new(),
-            log: VecDeque::with_capacity(maxlen),
+            recent: VecDeque::with_capacity(maxlen),
             maxlen,
+            nextid: 1,
         }
     }
 
-    pub fn add(&mut self, ts: Timestamp, data: String) -> Result<()> {
-        if let Some(last_entry) = self.log.back() {
-            let last_ts = last_entry.ts;
-            if last_ts > ts {
-                return Err(Error::msg(format!(
-                    "packets are supposed to be in chronological order, {} < {}",
-                    last_ts, ts
-                )));
+    pub fn push(&mut self, ts: Timestamp, data: String) -> Result<()> {
+        if let Some((_msgid, last_ts, _last_data, _last_res)) = self.recent.back() {
+            if last_ts > &ts {
+                return Err(Error::AprsOrder {
+                    new_ts: ts.to_string(),
+                    last_ts: (*last_ts).to_string(),
+                });
             }
         }
 
-        while self.log.len() >= self.maxlen - 1 {
-            self.log.pop_front();
+        while self.recent.len() >= self.maxlen - 1 {
+            self.recent.pop_front();
         }
 
         let parsed = Packet::parse(data.clone());
         if let Ok(Packet::Position(report)) = &parsed {
-            self.lastpos.insert(report.srccall.clone(), (ts, report.clone()));
+            self.lastpos
+                .insert(report.src_callsign.clone(), (ts, report.clone()));
         }
-        self.log.push_back(LogEntry{ts, data, parsed:parsed.map_err(|e| e.to_string())});
-
+        let id = self.nextid;
+        self.nextid += 1;
+        self.recent.push_back((id, ts, data, parsed));
         Ok(())
     }
 
+    #[cfg(never)]
     pub fn merge(&mut self, other: Self) {
         for (other_call, (other_ts, other_pos)) in other.lastpos.into_iter() {
             match self.lastpos.get(&other_call) {
@@ -113,18 +134,17 @@ impl Log {
                     () // do nothing, we already have more recent position
                 }
                 _ => {
-                    self.lastpos
-                        .insert(other_call, (other_ts, other_pos));
+                    self.lastpos.insert(other_call, (other_ts, other_pos));
                 }
             }
         }
 
-        let mut it = self.log.iter().peekable();
-        let mut otherit = other.log.iter().peekable();
+        let mut it = self.recent.iter().peekable();
+        let mut otherit = other.recent.iter().peekable();
         let mut newlog = VecDeque::with_capacity(self.maxlen);
         loop {
             match (it.peek(), otherit.peek()) {
-                (Some(&entry), Some(&otherentry)) if entry.ts < otherentry.ts => {
+                (Some(&entry), Some(&otherentry)) if entry.0 < otherentry.0 => {
                     newlog.push_back(entry);
                     it.next();
                 }
@@ -147,6 +167,7 @@ impl Log {
         }
     }
 
+    #[cfg(never)]
     pub fn filter(&self, bounds: Option<BBox>) -> Self {
         match bounds {
             None => self.clone(),
@@ -159,31 +180,34 @@ impl Log {
                     .collect();
 
                 let log = self
-                    .log
+                    .recent
                     .iter()
-                    .filter(|&v| match v {
-                        LogEntry{ parsed: Ok(packet), .. } => {
-                            lastpos.contains_key(packet.srccall())
-                        }
+                    .filter(|&v| match &v.2 {
+                        Ok(packet) => lastpos.contains_key(packet.srccall()),
                         _ => true,
                     })
                     .map(|v| v.clone())
                     .collect();
 
                 Self {
-                    log,
+                    recent: log,
                     lastpos,
                     maxlen: self.maxlen,
+                    nextid: self
                 }
             }
         }
     }
 
-    pub fn positions(&self) -> impl Iterator<Item = &(Timestamp, PositionReport)> {
+    pub fn station_count(&self) -> usize {
+        self.lastpos.len()
+    }
+
+    pub fn last_positions(&self) -> impl Iterator<Item = &(Timestamp, PositionReport)> {
         self.lastpos.values()
     }
 
-    pub fn station_count(&self) -> usize {
-        self.lastpos.len()
+    pub fn recent_entries(&self) -> impl Iterator<Item = &(u64, Timestamp, String, Result<Packet>)> {
+        self.recent.iter()
     }
 }

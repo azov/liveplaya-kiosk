@@ -1,22 +1,26 @@
 use crate::{
-    aprs_is, aprs_serial,
+    aprs_is, aprs_log, aprs_serial,
     err::{Error, Result},
-    io, twoway,
-    webapi::{self, JsonQuery, JsonValue},
-    worker,
+    io,
+    util::{time::*, twoway},
+    webapi, worker,
 };
+use std::path::PathBuf;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 pub async fn run(
     http_port: u16,
+    www_root: Option<std::path::PathBuf>,
     aprsis_server: Option<String>,
+    aprs_log: Option<PathBuf>,
     tty: Option<String>,
     baudrate: Option<u16>,
 ) -> Result<()> {
     let stop = CancellationToken::new();
     let (aprs_tx, aprs_rx) = mpsc::channel::<String>(1024);
-    let (query_tx, query_rx) = twoway::channel::<JsonQuery, JsonValue>(1024);
+    let (log_tx, log_rx) = mpsc::channel::<(Timestamp, String)>(1024);
+    let (query_tx, query_rx) = twoway::channel::<io::Query, io::View>(1024);
     let mut handles = Vec::new();
 
     // set shutdown handler
@@ -52,11 +56,27 @@ pub async fn run(
         log::debug!("not reading tty");
     }
 
+    // spawn log writer
+    if let Some(path) = aprs_log {
+        handles.push(tokio::spawn(aprs_log::run_writer(
+            path,
+            log_rx,
+            stop.clone(),
+        )));
+    } else {
+        log::debug!("not writing log");
+    }
+
     // spawn worker
-    handles.push(tokio::spawn(worker::run(query_rx, aprs_rx, stop.clone())));
+    handles.push(tokio::spawn(worker::run(
+        query_rx,
+        aprs_rx,
+        log_tx,
+        stop.clone(),
+    )));
 
     // run web server (this doesn't work with tokio::spawn)
-    if let Err(e) = webapi::run(http_port, query_tx, stop.clone()).await {
+    if let Err(e) = webapi::run(http_port, www_root, query_tx, stop.clone()).await {
         log::error!("{}", e);
     };
 

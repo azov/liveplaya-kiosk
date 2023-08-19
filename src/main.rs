@@ -1,31 +1,27 @@
 #![allow(dead_code)]
 use clap::Parser;
-
-mod core;
+use std::path::PathBuf;
 
 mod app;
+mod bm;
+mod brc;
+// mod core;
+mod bmorg;
 pub mod aprs;
 mod aprs_is;
+mod aprs_log;
 mod aprs_serial;
 mod clockpos;
-mod map;
+mod io;
 mod err;
-mod geo;
-pub mod io;
 mod motion;
-pub(crate) mod twoway;
-mod svc;
-mod time;
-mod units;
 mod util;
 mod webapi;
 mod worker;
 
-use crate::core::Result;
-
+use crate::err::Result;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-
 
 #[derive(clap::Parser)]
 #[command(author, version, about, long_about = None, disable_colored_help = false)]
@@ -34,13 +30,13 @@ struct Args {
     #[arg(short, long, default_value_t = false, env, global = true)]
     verbose: bool,
 
-    /// Enable timestamps log output
-    #[arg(long, default_value_t = false, global = true)]
-    log_timestamps: bool,
-
     /// Location of data files directory
     #[arg(long, value_name = "DIR", env, alias = "dataroot")]
     data: Option<std::path::PathBuf>, // this replaces --log and --digest
+
+    /// APRS log file
+    #[arg(long, value_name = "FILENAME", env)]
+    aprslog: Option<PathBuf>,
 
     /// APRS IS server URL & port
     #[arg(long, value_name = "URL", env)]
@@ -55,7 +51,7 @@ struct Args {
     baudrate: Option<u16>,
 
     /// Print available serial ports and exit
-    #[arg(long, default_value_t=false)]
+    #[arg(long, default_value_t = false)]
     print_ttys: bool,
 
     /// Serve HTTP requests from this port
@@ -89,7 +85,14 @@ pub async fn main() -> Result<()> {
     if args.print_ttys {
         app::print_ttys()
     } else {
-        app::run(args.httpport, args.aprsis, args.tty, args.baudrate).await
+        app::run(
+            args.httpport,
+            args.wwwroot,
+            args.aprsis,
+            args.aprslog,
+            args.tty,
+            args.baudrate,
+        )
+        .await
     }
 }
-

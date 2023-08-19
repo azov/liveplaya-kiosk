@@ -1,6 +1,8 @@
-use crate::core::*;
+use crate::util::{time::Timestamp, geo::Point};
+use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all="camelCase")]
 pub struct Position {
     pub location: Point,
     pub location_error_m: Option<f64>,
@@ -10,6 +12,7 @@ pub struct Position {
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all="camelCase")]
 pub struct Probe {
     pub ts: Timestamp,
     pub pos: Position,

@@ -1,0 +1,24 @@
+@import '../layouts/Base.scss';
+
+#mainmenu {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    height: $menu-height;
+    right: 0px;
+    padding: 5px;
+    background-color: $bgcolor02;
+}
+
+#mainmenu a {
+    margin: 5px;
+    color: $fgcolor01;
+    padding: 5px;
+}
+
+#mainmenu a.active {
+    font-weight: bold;
+    color: $fgcolor02;
+    text-decoration: none;
+
+}

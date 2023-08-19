@@ -1,0 +1,11 @@
+@import 'Base.scss';
+
+
+#text {
+  position: absolute;
+  top: $menu-height;
+  width: 100%;
+  bottom: 0px;
+  padding: 10px;
+  overflow: scroll;
+}

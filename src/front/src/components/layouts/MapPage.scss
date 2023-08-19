@@ -1,0 +1,28 @@
+@import 'Base.scss';
+
+$overlay-width: 250px;
+$overlay-height: 90%;
+
+#map {
+  position: absolute;
+  top: $menu-height;
+  right: 0px;
+  left: $overlay-width;
+  bottom: 0px;
+  right: 0px;
+  overflow: hidden;
+}
+
+#mapoverlay {
+  position: absolute;
+  top: $menu-height;
+  left: 0px;
+  width: $overlay-width;
+  bottom: 0px;
+  color: $fgcolor02;
+  padding: 10px;
+  padding-top: 40px;
+  background-color: rgba($bgcolor01, 0.5);
+  overflow: hidden;
+}
+
