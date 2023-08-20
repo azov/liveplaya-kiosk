@@ -5,23 +5,29 @@ use std::path::PathBuf;
 mod app;
 mod bm;
 mod brc;
-// mod core;
-mod bmorg;
+mod brc2023;
 pub mod aprs;
 mod aprs_is;
-mod aprs_log;
-mod aprs_serial;
+mod aprs_tty;
+// mod aprslog;
+mod bmorg;
 mod clockpos;
-mod io;
+// mod jsonl;
 mod err;
+mod io;
 mod motion;
+mod svc;
 mod util;
 mod webapi;
-mod worker;
 
 use crate::err::Result;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+    /// Location of data files directory
+    // #[arg(long, value_name = "DIR", env, alias = "dataroot")]
+    // data: Option<std::path::PathBuf>, // this replaces --log and --digest
+
 
 #[derive(clap::Parser)]
 #[command(author, version, about, long_about = None, disable_colored_help = false)]
@@ -29,18 +35,6 @@ struct Args {
     /// Enable verbose log output
     #[arg(short, long, default_value_t = false, env, global = true)]
     verbose: bool,
-
-    /// Location of data files directory
-    #[arg(long, value_name = "DIR", env, alias = "dataroot")]
-    data: Option<std::path::PathBuf>, // this replaces --log and --digest
-
-    /// APRS log file
-    #[arg(long, value_name = "FILENAME", env)]
-    aprslog: Option<PathBuf>,
-
-    /// APRS IS server URL & port
-    #[arg(long, value_name = "URL", env)]
-    aprsis: Option<String>,
 
     /// Read from this serial device
     #[arg(long, value_name = "URL", env)]
@@ -57,6 +51,7 @@ struct Args {
     /// Serve HTTP requests from this port
     #[arg(
         long,
+        short = 'p',
         value_name = "PORT",
         default_value_t = 8080,
         env,
@@ -65,8 +60,17 @@ struct Args {
     httpport: u16,
 
     /// Serve web files from this directory
-    #[arg(long, value_name = "URL", env, alias = "docroot")]
+    #[arg(long, short, value_name = "URL", env, alias = "docroot")]
     wwwroot: Option<std::path::PathBuf>,
+
+    /// APRS IS server URL & port (e.g. rotate.aprs2.net:14580)
+    #[arg(long, value_name = "URL", env)]
+    aprsis: Option<String>,
+
+    /// Event log file
+    #[arg(long, short = 'l', value_name = "FILENAME", env)]
+    eventlog: Option<PathBuf>,
+
 }
 
 #[tokio::main]
@@ -88,10 +92,10 @@ pub async fn main() -> Result<()> {
         app::run(
             args.httpport,
             args.wwwroot,
-            args.aprsis,
-            args.aprslog,
             args.tty,
             args.baudrate,
+            args.aprsis,
+            args.eventlog,
         )
         .await
     }

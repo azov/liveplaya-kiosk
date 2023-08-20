@@ -1,6 +1,4 @@
-use crate::{
-    err::{Error, Result},
-};
+use crate::err::{Error, Result};
 use tokio::{
     select,
     sync::{mpsc, oneshot},

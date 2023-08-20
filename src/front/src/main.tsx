@@ -1,27 +1,34 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import MapPage from './components/layouts/MapPage'
-import FeatureView from './components/views/FeatureView'
+import FullPage from './components/layouts/FullPage'
 import TextPage from './components/layouts/TextPage'
+import MapView from './components/views/MapView'
 import LogView from './components/views/LogView'
+import ListView from './components/views/ListView'
 import * as ReactRouter from 'react-router-dom';
 
-const router = ReactRouter.createBrowserRouter([
+const router = ReactRouter.createHashRouter([
   {
     path: "/",
     element: <Redirect to={"/map"}/>,
   },
   {
     path: "/map",
-    element: <MapPage/>,
+    element: <FullPage/>,
     children: [
       {
         path: "",
-        element: <FeatureView/>,
+        element: <MapView/>,
       },
+    ]
+  },
+  {
+    path: "/list",
+    element: <TextPage/>,
+    children: [
       {
-        path: ":feature",
-        element: <FeatureView/>,
+        path: "",
+        element: <ListView/>,
       },
     ]
   },

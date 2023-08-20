@@ -71,6 +71,8 @@ export function useNavQuery(): [NavQuery, (q: NavQuery) => void] {
   return [query, navigate];
 }
 
+let theSession: api.Session|null = null;
+
 /**
  * A React hook to use session
  */
@@ -78,7 +80,7 @@ export function useSession() {
   const [navQuery, _navigate] = useNavQuery();
   const session = react.useRef<api.Session | null>(null);
 
-  if (!session.current) {
+  if (!theSession) {
     // Build initial map query. Map container have not yet been
     // rendered, so we don't know it's size and thus the map bounds - but we'll
     // create some dummy bounds instead.
@@ -90,24 +92,24 @@ export function useSession() {
       timeMs,
     };
     console.log(`initial api query:`, JSON.stringify(apiQuery));
-    session.current = new api.Session(apiQuery, 5000);
+    theSession = new api.Session(apiQuery, 5000);
   }
 
   const query = (q: api.Query) => {
-    session.current!.query(q);
+    theSession!.query(q);
   };
 
   const dismissAlert = () => {
-    session.current!.dismissAlert();
+    theSession!.dismissAlert();
   };
 
   const subscribe = (listener: api.Listener) => {
-    session.current!.on("update", listener);
-    return () => session.current!.off("update", listener);
+    theSession!.on("update", listener);
+    return () => theSession!.off("update", listener);
   };
 
   const snapshot = () => {
-    return session.current!.state;
+    return theSession!.state;
   };
 
   return {

@@ -2,7 +2,7 @@
 authors = ["Dmitry Azovtsev <dmitry@azovtsev.com>"]
 edition = "2021"
 name = "liveplaya-kiosk"
-version = "0.3.1"
+version = "0.3.6"
 
 [dependencies]
 actix = {version = "0.13"}
@@ -17,9 +17,11 @@ env_logger = "0.9"
 fap = {version = "0.2.1"}
 geo = {version = "0.26"}
 geojson = {version = "0.23", features = ["geo-types"]}
+include_dir = "0.7.3"
 lazy_static = "1"
 log = {version = "0.4", features = ['std']}
 serde = {version = "1", features = ["derive"]}
+serde-jsonlines = {version="0.4.0", features = ["async"]}
 serde-querystring = "0.2.1"
 serde_json = "1.0.83"
 serde_urlencoded = "0.7.1"

@@ -95,6 +95,10 @@ impl Timestamp {
         Timestamp::try_from(dt)
     }
 
+    pub fn parse(s: impl AsRef<str>) -> Result<Self> {
+        Self::from_iso_string(s)
+    }
+
     pub fn to_offset_hrs(&self, hrs: i8) -> Result<Self> {
         let offset = ::time::UtcOffset::from_hms(hrs, 0, 0)
             .map_err(|e| Error::Other(format!("bad UTC offset {}: {}", hrs, e)))?;
@@ -254,7 +258,6 @@ impl<'de> serde::Deserialize<'de> for Timestamp {
     }
 }
 
-
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct Timespan {
     start: Timestamp,
@@ -279,7 +282,10 @@ impl Timespan {
     }
 
     pub fn from_timestamp_and_ms(ts: Timestamp, duration_ms: u32) -> Result<Self> {
-        Ok(Self::new(ts, ts.add(Duration::from_millis(duration_ms as u64))?))
+        Ok(Self::new(
+            ts,
+            ts.add(Duration::from_millis(duration_ms as u64))?,
+        ))
     }
 
     pub fn from_timestamp_and_days(ts: Timestamp, duration_days: u32) -> Result<Self> {
@@ -310,22 +316,22 @@ impl Timespan {
         self.end
     }
 
-    #[deprecated(since="0.3.1", note="please use `start` instead")]
+    #[deprecated(since = "0.3.1", note = "please use `start` instead")]
     pub fn start_time(&self) -> Timestamp {
         self.start()
     }
 
-    #[deprecated(since="0.3.1", note="please use `end` instead")]
+    #[deprecated(since = "0.3.1", note = "please use `end` instead")]
     pub fn end_time(&self) -> Timestamp {
         self.end()
     }
 
-    #[deprecated(since="0.3.1", note="please use `start` instead")]
+    #[deprecated(since = "0.3.1", note = "please use `start` instead")]
     pub const fn start_ts(&self) -> Timestamp {
         self.start()
     }
 
-    #[deprecated(since="0.3.1", note="please use `end` instead")]
+    #[deprecated(since = "0.3.1", note = "please use `end` instead")]
     pub fn end_ts(&self) -> Timestamp {
         self.end()
     }
@@ -369,28 +375,22 @@ impl std::fmt::Display for Timespan {
         } else {
             format!(" ({})", ::time::Duration::milliseconds(dur as i64))
         };
-        write!(
-            f,
-            "{}..{}{}",
-            &self.start(),
-            self.end(),
-            pretty_dur
-        )
+        write!(f, "{}..{}{}", &self.start(), self.end(), pretty_dur)
     }
 }
 
 pub trait DurationExt {
     fn from_days(n: u32) -> Self;
-    fn whole_days(self) -> u64; 
+    fn whole_days(self) -> u64;
 }
 
 impl DurationExt for Duration {
     fn from_days(n: u32) -> Self {
-        Self::from_secs((n as u64)*24*3600)
+        Self::from_secs((n as u64) * 24 * 3600)
     }
 
     fn whole_days(self) -> u64 {
-        self.as_secs() / (24*3600)
+        self.as_secs() / (24 * 3600)
     }
 }
 
@@ -412,7 +412,7 @@ mod tests {
     #[test]
     fn test_add_timestamp() {
         let ts = Timestamp::from_calendar_utc(2022, 2, 2, 2, 2, 2).unwrap();
-        let dur = Duration::from_secs(24*3600);
+        let dur = Duration::from_secs(24 * 3600);
         assert_eq!(
             ts.add(dur).unwrap(),
             Timestamp::from_calendar_utc(2022, 2, 3, 2, 2, 2).unwrap()

@@ -61,7 +61,7 @@ export function getMapStyle(
     metadata: {
       padding: 60,
     },
-    glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+    glyphs: "/fonts/{fontstack}/{range}.pbf",
     sources: {
       osmtiles: {
         type: "raster",
@@ -112,7 +112,7 @@ export function getMapStyle(
         paint: {
           "line-width": 1,
           "line-color": COLORS.fgcolor02,
-          "line-opacity": 1,
+          "line-opacity": 0.7,
         },
       },
       // {
@@ -155,11 +155,11 @@ export function getMapStyle(
         source: "mapdata",
         minzoom: 12.5,
         type: "symbol",
-        filter: ["==", ["get", "brc"], "tstreetend"],
+        filter: ["==", ["get", "liveplaya"], "radialend"],
         metadata: {},
         layout: {
           "text-field": ["get", "name"],
-          "text-offset": [0.5, 0],
+          "text-offset": [1.9, 0],
           "text-anchor": "left",
           "text-rotate": ["+", -90, ["get", "dir"]],
           "text-rotation-alignment": "viewport",
@@ -168,10 +168,10 @@ export function getMapStyle(
           "text-size": ["interpolate", ["linear"], ["zoom"], 12.5, 8, 16, 16],
         },
         paint: {
-          "text-color": COLORS.fgcolor01,
+          "text-color": COLORS.fgcolor02,
           "text-opacity": 1,
           "text-halo-width": 1,
-          "text-halo-color": COLORS.bgcolor02,
+          "text-halo-color": COLORS.bgcolor01,
         },
       },
       {
@@ -191,10 +191,10 @@ export function getMapStyle(
           "text-size": ["interpolate", ["linear"], ["zoom"], 12.5, 8, 16, 16],
         },
         paint: {
-          "text-color": COLORS.bgfeature,
+          "text-color": COLORS.fgcolor02,
           "text-opacity": 1,
           "text-halo-width": 1,
-          "text-halo-color": COLORS.background,
+          "text-halo-color": COLORS.bgcolor01,
         },
       },
       {
@@ -215,10 +215,10 @@ export function getMapStyle(
           "text-size": ["interpolate", ["linear"], ["zoom"], 12.5, 8, 16, 16],
         },
         paint: {
-          "text-color": COLORS.bgfeature,
+          "text-color": COLORS.fgcolor02,
           "text-opacity": 1,
           "text-halo-width": 1,
-          "text-halo-color": COLORS.background,
+          "text-halo-color": COLORS.bgcolor01,
         },
       },
       {
@@ -255,18 +255,6 @@ export function getMapStyle(
         },
       },
       {
-        id: "traces",
-        source: "mapdata", // rtfeatures
-        type: "line",
-        filter: ["==", ["get", "type"], "trace"],
-        paint: {
-          "line-width": 1,
-          "line-color": COLORS.fgaccent1,
-          "line-opacity": 0.5,
-          "line-dasharray": [2, 2],
-        },
-      },
-      {
         id: "status-labels",
         source: "mapdata", // rtfeatures
         //minzoom: 14,
@@ -288,30 +276,31 @@ export function getMapStyle(
           "text-halo-color": COLORS.background,
         },
       },
-      // {
-      //   id: "statuses",
-      //   source: "mapdata", // rtfeatures
-      //   // minzoom: 14,
-      //   type: "symbol",
-      //   filter: ["has", "status"],
-      //   metadata: {
-      //     visibilityFlag: "hideEvt",
-      //     visibilityFlagInverted: true,
-      //   },
-      //   layout: {
-      //     "text-field": ["get", "status"],
-      //     "text-offset": [0, 1],
-      //     'text-anchor': 'center',
-      //     "text-allow-overlap": false,
-      //     "text-size": ["match", ["get", "size"], "small", 12, "large", 16, 14],
-      //   },
-      //   paint: {
-      //     "text-color": COLORS.fgaccent1,
-      //     "text-opacity": 1,
-      //     "text-halo-width": 1.5,
-      //     "text-halo-color": COLORS.background,
-      //   },
-      // },
+      {
+        id: "location-labels",
+        source: "mapdata", // rtfeatures
+        // minzoom: 14,
+        type: "symbol",
+        filter: ["has", "location"],
+        metadata: {
+          visibilityFlag: "hideEvt",
+          visibilityFlagInverted: true,
+        },
+        layout: {
+          "text-field": ["get", "location"],
+          "text-offset": [0, 3],
+          'text-anchor': 'center',
+          "text-allow-overlap": true,
+          // "text-size": ["match", ["get", "size"], "small", 12, "large", 16, 14],
+          "text-size": 11,
+        },
+        paint: {
+          "text-color": COLORS.fgcolor03,
+          "text-opacity": 1,
+          "text-halo-width": 1.5,
+          "text-halo-color": COLORS.bgcolor01,
+        },
+      },
       {
         id: "beacons",
         source: "mapdata", // rtfeatures
@@ -351,7 +340,7 @@ export function getMapStyle(
           "icon-halo-color": COLORS.bgcolor01,
           "icon-halo-width": 1,
           "icon-opacity": ["case", ["get", "recent"], 1, 0.5],
-          "text-color": COLORS.fgcolor02,
+          "text-color": '#ff5555', //COLORS.fgcolor02,
           "text-opacity": ["case", ["get", "recent"], 1, 0.5],
           "text-halo-width": 1.5,
           "text-halo-color": COLORS.bgcolor01,

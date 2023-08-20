@@ -1,14 +1,5 @@
 @import '../layouts/Base.scss';
 
-#mainmenu {
-    position: absolute;
-    top: 0px;
-    left: 0px;
-    height: $menu-height;
-    right: 0px;
-    padding: 5px;
-    background-color: $bgcolor02;
-}
 
 #mainmenu a {
     margin: 5px;

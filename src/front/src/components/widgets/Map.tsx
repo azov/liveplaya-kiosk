@@ -2,7 +2,7 @@ import * as react from 'react';
 import * as maplibre from 'maplibre-gl';
 import * as mapstyle from './MapStyle';
 import type * as api from '../../api';
-import tracker from '../../assets/tracker.png';
+import tracker from '../../assets/tracker02.png';
 
 interface MapProps {
   // center?: api.LngLat;

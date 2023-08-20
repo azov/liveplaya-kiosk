@@ -1,63 +1,44 @@
-use crate::{
-    err::{Error, Result},
-    util::tbc,
-};
+use crate::err::{Error, Result};
 use std::time::Duration;
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, AsyncWriteExt},
     sync::mpsc,
 };
-use tokio_util::sync::CancellationToken;
 
 pub static DEFAULT_SERVER: &str = "rotate.aprs2.net:14580";
 
-pub async fn run(server: impl AsRef<str>, tx: mpsc::Sender<String>, stop: CancellationToken) {
+pub async fn read(server: impl AsRef<str>, tx: mpsc::Sender<String>) -> Result<()> {
     let server = server.as_ref();
-
-    while !stop.is_cancelled() {
-        if let Err(e) = run_session(server, tx.clone(), &stop).await {
+    loop {
+        if let Err(e) = try_read(&server, tx.clone()).await {
             log::error!("{}: {}", server, e);
         }
-        _ = tbc::sleep(Duration::from_secs(3), &stop).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
 }
 
-async fn run_session(server: &str, tx: mpsc::Sender<String>, stop: &CancellationToken) -> Result<()> {
+async fn try_read(server: &str, tx: mpsc::Sender<String>) -> Result<()> {
     let timeout = std::time::Duration::from_secs(5);
 
     log::debug!("{}: connecting...", server);
-    let mut stream = tbc::timebound_cancellable(
-        tokio::net::TcpStream::connect(server),
-        timeout,
-        &stop,
-    )
-    .await?;
+    let mut stream =
+        tokio::time::timeout(timeout, tokio::net::TcpStream::connect(server)).await??;
     log::info!("{}: connected", server);
 
-    //let hello = b"user N0CALL pass -1 vers liveplaya 0.00 filter r/40.79608429483125/-119.19589964220306/200\r\n";
-    let hello = b"user N0CALL pass -1 vers liveplaya 0.00 filter r/37.371111/-122.0375/100 r/40.79608429483125/-119.19589964220306/100\r\n";
+    let hello = b"user N0CALL pass -1 vers liveplaya 0.00 filter r/40.79608429483125/-119.19589964220306/200\r\n";
+    // let hello = b"user N0CALL pass -1 vers liveplaya 0.00 filter r/37.371111/-122.0375/100 r/40.79608429483125/-119.19589964220306/100\r\n";
 
     log::debug!("{}: starting session...", server);
-    _ = tbc::timebound_cancellable(
-        stream.write_all(hello),
-        timeout,
-        &stop
-    ).await?;
+    tokio::time::timeout(timeout, stream.write_all(hello)).await??;
 
-    let (stream_rx, _stream_tx) = stream.split();
-    let mut reader = BufReader::new(stream_rx);
+    let (_stream_rx, _stream_tx) = stream.split();
+    let mut lines = tokio::io::BufReader::new(stream).lines();
 
     // read packets
-    loop {
-        let mut line = String::new();
-        let bytes_read = tbc::timebound_cancellable(
-            reader.read_line(&mut line),
-            //  restart the session if we get nothing from the server for a few mins
-            Duration::from_secs(180),
-            &stop
-        ).await?;
-
-        if bytes_read == 0 || line.chars().all(|c| c.is_whitespace()) {
+    let timeout = std::time::Duration::from_secs(180);
+ 
+    while let Some(line) = tokio::time::timeout(timeout, lines.next_line()).await?? {
+        if line.chars().all(|c| c.is_whitespace()) {
             continue; // skip whitespace
         }
         log::info!("{}: recv {:?}", server, line);
@@ -68,9 +49,12 @@ async fn run_session(server: &str, tx: mpsc::Sender<String>, stop: &Cancellation
             continue;
         }
 
-        // Send the packet back. Use fairly long timeout in case the server is
-        // busy
-        tbc::timebound_cancellable(tx.send(line), Duration::from_secs(200), stop).await?;
+        match tx.try_send(line) {
+            Ok(()) => (),
+            Err(_) => {
+                log::error!("busy, dropping packet");
+            }
+        }
     }
+    Err(Error::Disconnected)
 }
-

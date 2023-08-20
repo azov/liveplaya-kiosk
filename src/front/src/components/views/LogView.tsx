@@ -17,7 +17,7 @@ export default function LogView() {
         <table className="log">
             <tbody>
                 {log.map((entry) => (
-                    <tr key={entry.id} className={entry.level}><td>{entry.time}</td><td>{entry.text}</td></tr>
+                    <tr key={entry.id} className={entry.level}><td>{entry.time}&nbsp;</td><td>{entry.text}</td></tr>
                 ))}
             </tbody>
         </table>

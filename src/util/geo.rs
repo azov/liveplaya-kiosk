@@ -1,4 +1,5 @@
 use crate::err::{Error, Result};
+use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -197,6 +198,8 @@ impl<'de> serde::Deserialize<'de> for Point {
 }
 
 
+
+
 #[derive(Debug, Clone)]
 pub struct BBox {
     min: Point,
@@ -359,7 +362,8 @@ impl<'de> serde::Deserialize<'de> for BBox {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all="camelCase")]
 pub struct LineString(Vec<Point>);
 
 impl LineString {
@@ -433,7 +437,8 @@ impl Into<::geojson::Value> for LineString {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all="camelCase")]
 pub struct MultiLineString(Vec<LineString>);
 
 impl MultiLineString {
@@ -443,7 +448,8 @@ impl MultiLineString {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all="camelCase")]
 pub struct Polygon {
     exterior: LineString,
     holes: Vec<LineString>,
@@ -454,6 +460,33 @@ impl Polygon {
         let exterior = exterior.closed();
         let holes = holes.into_iter().map(|v| v.closed()).collect();
         Self { exterior, holes }
+    }
+
+    pub fn from_geojson_value(value: &geojson::Value) -> Result<Self> {
+        match value {
+            ::geojson::Value::Polygon(polygon) => {
+                let exterior_vec = if let Some(vec) = polygon.first() {
+                    vec
+                } else {
+                    return Err(Error::msg("polygon must have non-empty exterior"));
+                };
+                let mut exterior_points = Vec::with_capacity(exterior_vec.len());
+                for pt in exterior_vec {
+                    exterior_points.push(Point::new(pt[0], pt[1])?);
+                }
+                let exterior = LineString::new(exterior_points);
+                let mut holes = Vec::new();
+                for hole in &polygon[1..] {
+                    let mut points = Vec::with_capacity(hole.len());
+                    for pt in hole  {
+                        points.push(Point::new(pt[0], pt[1])?);
+                    }
+                    holes.push(LineString::new(points))
+                }
+                return Ok(Self::new(exterior, holes));
+            },
+            _ => Err(Error::Other(format!("expected a polygon, got {}", value))),
+        }
     }
 
     pub fn cyclic(center: Point, radius_m: f64, vertex_cnt: usize) -> Self {
@@ -488,6 +521,23 @@ impl Into<::geojson::Value> for Polygon {
         ::geojson::Value::Polygon(coords)
     }
 }
+
+impl TryFrom<::geojson::Geometry> for Polygon {
+    type Error = crate::err::Error;
+    fn try_from(v: ::geojson::Geometry) -> std::result::Result<Self, Self::Error> {
+        v.value.try_into()
+    }
+}
+
+impl TryFrom<::geojson::Value> for Polygon {
+    type Error = crate::err::Error;
+
+    fn try_from(value: ::geojson::Value) -> std::result::Result<Self, Self::Error> {
+        Polygon::from_geojson_value(&value)
+    }
+}
+
+
 
 /// Generate points along the circle arc
 fn interpolate_arc(

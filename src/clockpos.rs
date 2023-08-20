@@ -8,16 +8,22 @@ const MINUTES_ON_CLOCK_FACE: i32 = 12 * 60;
 const DEGREES_IN_HR: f64 = 360.0 / 12.0;
 const DEGREES_IN_MIN: f64 = 360.0 / (MINUTES_ON_CLOCK_FACE as f64);
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct ClockPos {
     hour: u8,
     minute: u8,
 }
 
 impl ClockPos {
-    pub const C02_00: ClockPos = ClockPos { hour: 2, minute: 0 };
-    pub const C06_00: ClockPos = ClockPos { hour: 6, minute: 0 };
-    pub const C10_00: ClockPos = ClockPos {
+    pub const NOON: ClockPos = ClockPos {
+        hour: 12,
+        minute: 0,
+    };
+    pub const TWO: ClockPos = ClockPos { hour: 2, minute: 0 };
+    pub const THREE: ClockPos = ClockPos { hour: 3, minute: 0 };
+    pub const SIX: ClockPos = ClockPos { hour: 6, minute: 0 };
+    pub const NINE: ClockPos = ClockPos { hour: 9, minute: 0 };
+    pub const TEN: ClockPos = ClockPos {
         hour: 10,
         minute: 0,
     };
@@ -28,6 +34,10 @@ impl ClockPos {
 
     pub fn min(&self) -> u8 {
         self.minute
+    }
+
+    pub fn new(hour: u16, minute: u16) -> Result<Self> {
+        Self::from_hr_min(hour, minute)
     }
 
     pub fn from_hr_min(hour: u16, minute: u16) -> Result<Self> {
@@ -48,7 +58,7 @@ impl ClockPos {
     pub fn from_degrees(deg: f64) -> Self {
         let deg = normalize_angle(deg);
         let hour = (deg / DEGREES_IN_HR) as u8;
-        let minute = ((360. - (hour as f64) * DEGREES_IN_HR) / DEGREES_IN_MIN) as u8;
+        let minute = ((deg - (hour as f64) * DEGREES_IN_HR) / DEGREES_IN_MIN) as u8;
         Self { hour, minute }
     }
 
@@ -66,6 +76,7 @@ impl std::str::FromStr for ClockPos {
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let hm = s
+            .trim()
             .split(":")
             .map(|v| {
                 v.parse::<u16>().map_err(|_| {
@@ -93,6 +104,18 @@ mod tests {
         assert_eq!(c.hour, 2);
         assert_eq!(c.minute, 0);
 
+        let c = "02:15".parse::<ClockPos>().unwrap();
+        assert_eq!(c.hour, 2);
+        assert_eq!(c.minute, 15);
+
+        let c = " 2:15".parse::<ClockPos>().unwrap();
+        assert_eq!(c.hour, 2);
+        assert_eq!(c.minute, 15);
+
+        let c = " 2:17 ".parse::<ClockPos>().unwrap();
+        assert_eq!(c.hour, 2);
+        assert_eq!(c.minute, 17);
+
         let c = "4:15".parse::<ClockPos>().unwrap();
         assert_eq!(c.hour, 4);
         assert_eq!(c.minute, 15);
@@ -108,11 +131,38 @@ mod tests {
     }
 
     #[test]
-    fn test_from_to_degrees() {
+    fn test_to_degrees() {
+        assert_eq!(ClockPos::NOON.to_degrees(), 0.);
+        assert_eq!(ClockPos::THREE.to_degrees(), 90.);
+        assert_eq!(ClockPos::SIX.to_degrees(), 180.);
+        assert_eq!(ClockPos::NINE.to_degrees(), 270.);
+        assert_eq!(ClockPos::new(2, 15).unwrap().to_degrees(), 67.5);
+    }
+
+    #[test]
+    fn test_from_degrees() {
+        assert_eq!(ClockPos::from_degrees(0.), ClockPos::NOON);
+        assert_eq!(ClockPos::from_degrees(90.), ClockPos::THREE);
+        assert_eq!(ClockPos::from_degrees(180.), ClockPos::SIX);
+        assert_eq!(ClockPos::from_degrees(270.), ClockPos::NINE);
+        assert_eq!(ClockPos::from_degrees(67.5), ClockPos::new(2, 15).unwrap());
+    }
+
+    #[test]
+    fn test_ordering() {
+        assert!(ClockPos::NOON > ClockPos::THREE);
+        assert!(ClockPos::TWO < ClockPos::THREE);
+        assert!(ClockPos::new(2,15).unwrap() < ClockPos::new(2,16).unwrap());
+        assert!(ClockPos::new(3,1).unwrap() > ClockPos::new(2,59).unwrap());
+        assert!(ClockPos::new(11,59).unwrap() < ClockPos::new(12,0).unwrap());
+        assert!(ClockPos::new(12,01).unwrap() > ClockPos::new(12,0).unwrap());
+    }
+
+    #[test]
+    fn test_roundtrip_to_string() {
         let c1 = "2:15";
         let deg = c1.parse::<ClockPos>().unwrap().to_degrees();
         let c2 = ClockPos::from_degrees(deg).to_string();
-        assert_eq!(c1,c2);
+        assert_eq!(c1, c2);
     }
-
 }

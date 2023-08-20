@@ -72,6 +72,7 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+
 impl Error {
     pub fn msg(v: impl ToString) -> Self {
         Error::Other(v.to_string())
@@ -84,6 +85,20 @@ impl Error {
         })
     }
 }
+
+
+pub trait LogResult {
+    fn log_result(self);
+}
+
+impl<E: std::fmt::Display> LogResult for std::result::Result<(), E> {
+    fn log_result(self) {
+        if let Err(e) = self {
+            log::error!("{}", e);
+        }
+    }
+}
+
 
 impl std::convert::From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Self {
@@ -109,6 +124,18 @@ impl<T> std::convert::From<tokio::sync::mpsc::error::SendError<T>> for Error {
         match value {
             tokio::sync::mpsc::error::SendError(_v) => Self::Disconnected,
         }
+    }
+}
+
+impl std::convert::From<tokio::time::error::Elapsed> for Error {
+    fn from(_value: tokio::time::error::Elapsed) -> Self {
+        Error::msg("timed out")
+    }
+}
+
+impl std::convert::From<serde_json::Error> for Error {
+    fn from(value: serde_json::Error) -> Self {
+        Error::Other(format!("failed to serialize {:?}", value))
     }
 }
 

@@ -6,7 +6,8 @@ export default function FullPage() {
     return (
         <>
            <header><MainMenu/></header>
-           <main className="text"><Outlet/></main>
+           <main className="full"><Outlet/></main>
         </>
     );
 }
+

@@ -4,5 +4,5 @@ export default function Spinner() {
     const { session: state } = hooks.useSession();
 
     return state.isLoading ? (
-        <div id="spinner">Loading</div>) : (<></>);
+        <div className="bull">Loading...</div>) : (<></>);
 }
