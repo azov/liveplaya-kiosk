@@ -5,6 +5,7 @@ use std::path::PathBuf;
 mod app;
 mod bm;
 mod brc;
+mod brc2023;
 // mod core;
 mod bmorg;
 pub mod aprs;

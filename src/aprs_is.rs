@@ -34,8 +34,8 @@ async fn run_session(server: &str, tx: mpsc::Sender<String>, stop: &Cancellation
     .await?;
     log::info!("{}: connected", server);
 
-    //let hello = b"user N0CALL pass -1 vers liveplaya 0.00 filter r/40.79608429483125/-119.19589964220306/200\r\n";
-    let hello = b"user N0CALL pass -1 vers liveplaya 0.00 filter r/37.371111/-122.0375/100 r/40.79608429483125/-119.19589964220306/100\r\n";
+    let hello = b"user N0CALL pass -1 vers liveplaya 0.00 filter r/40.79608429483125/-119.19589964220306/200\r\n";
+    // let hello = b"user N0CALL pass -1 vers liveplaya 0.00 filter r/37.371111/-122.0375/100 r/40.79608429483125/-119.19589964220306/100\r\n";
 
     log::debug!("{}: starting session...", server);
     _ = tbc::timebound_cancellable(

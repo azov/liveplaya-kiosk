@@ -9,6 +9,7 @@ use tokio_util::sync::CancellationToken;
 pub type JsonQuery = JsonValue;
 pub use serde_json::{json, Value as JsonValue};
 
+
 #[get("/")]
 async fn get_index() -> impl Responder {
     //HttpResponse::TemporaryRedirect()

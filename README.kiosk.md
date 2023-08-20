@@ -8,6 +8,24 @@
 
 ## Creating SD card
 
+Download Raspberry Pi Imager (https://www.raspberrypi.com/software/)
+Choose "Special OS"?? -> FullPageOS
+Click the gear icon
+Set hostname to tgwtf
+Enable SSH
+Use password authentication
+
+Username/pass: tgwtf/****
+
+Set locale settings
+
+Disable telemetry
+
+>>>>
+
+
+
+
 Download the [latest Raspbian Stretch Lite distro](https://downloads.raspberrypi.org/raspbian_lite_latest) 
 (this steps were tested with 2018-11-13 version].
 
