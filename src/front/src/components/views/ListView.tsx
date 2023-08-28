@@ -17,8 +17,8 @@ export default function ListView() {
             {session.view.refs.map((ref) => (
                 <div key={ref.slug} className="ref" style={{breakInside: "avoid-column"}}>
                     <div className="name"><b>{ref.name}</b></div>
-                    <div className="lastseen"><Timestamp time={ref.lastseen} /></div>
                     <div className="location">{ref.location}</div>
+                    <div className="lastseen"><Timestamp time={ref.lastseen} /></div>
                 </div>
             ))}
         </div>

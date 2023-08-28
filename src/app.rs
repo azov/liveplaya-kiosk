@@ -6,6 +6,7 @@ use crate::{
     util::time::{Timespan, Timestamp},
     webapi,
 };
+use std::collections::HashMap;
 use tokio::sync::mpsc;
 
 mod get_view;
@@ -45,9 +46,10 @@ pub async fn run(
     }
 
     // APRS IS
-    if let Some(server) = aprsis_server {
-        tasks.spawn(aprs_is::read(server, aprs_dta_tx.clone()));
-    }
+    tasks.spawn(aprs_is::read(
+        aprsis_server.unwrap_or(aprs_is::DEFAULT_SERVER.into()),
+        aprs_dta_tx.clone(),
+    ));
 
     // Actix handles its own shutdown and we'll piggy back on that (also, it
     // doesn't seem to work as a spawned task, so we kinda have to)
@@ -65,6 +67,7 @@ pub async fn run(
 pub struct Server {
     brc: crate::brc::BlackRockCity,
     aprs_cache: crate::aprs::Log,
+    pois_by_call: HashMap<&'static str, &'static io::site::Poi>,
 
     user_evt_rx: mpsc::Receiver<io::user::Event>,
     aprs_dta_rx: mpsc::Receiver<String>,
@@ -80,9 +83,14 @@ impl Server {
     ) -> Self {
         let brc = crate::brc2023::get();
         let aprs_cache = crate::aprs::Log::new();
+        let pois_by_call = crate::brc2023::POIS
+            .iter()
+            .map(|poi| (poi.call, poi))
+            .collect();
         Self {
             brc,
             aprs_cache,
+            pois_by_call,
             user_evt_rx,
             aprs_dta_rx,
             store,
@@ -90,24 +98,9 @@ impl Server {
     }
 
     pub async fn run(mut self) -> Result<()> {
+        self.preload().await.log_result();
+
         log::debug!("entering server mainloop");
-
-        // preload data
-        let span = Timespan::week_until_now();
-        match self.store.query(span).await {
-            Ok(records) => {
-                for (ts, rec) in records {
-                    match rec {
-                        io::store::Record::AprsPacket { data } => {
-                            self.post_aprs(ts, data).await.log_result()
-                        }
-                    }
-                }
-            }
-            Err(e) => Err(e).log_result(),
-        }
-
-        // run main loop
         loop {
             tokio::select! {
                 Some(evt) = self.user_evt_rx.recv() => self.process_user_event(evt).await.log_result(),
@@ -132,5 +125,26 @@ impl Server {
             .await
             .log_result();
         self.post_aprs(now, data).await
+    }
+
+    pub async fn preload(&mut self) -> Result<()> {
+        log::info!("preloading data...");
+        let mut cnt = 0;
+        let span = Timespan::week_until_now();
+        match self.store.query(span).await {
+            Ok(records) => {
+                for (ts, rec) in records {
+                    match rec {
+                        io::store::Record::AprsPacket { data } => {
+                            cnt += 1;
+                            self.post_aprs(ts, data).await.log_result();
+                        }
+                    };
+                }
+            }
+            Err(e) => Err(e).log_result(),
+        }
+        log::info!("preloaded {} items", cnt);
+        Ok(())
     }
 }

@@ -78,7 +78,6 @@ let theSession: api.Session|null = null;
  */
 export function useSession() {
   const [navQuery, _navigate] = useNavQuery();
-  const session = react.useRef<api.Session | null>(null);
 
   if (!theSession) {
     // Build initial map query. Map container have not yet been

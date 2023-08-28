@@ -2,7 +2,7 @@
 authors = ["Dmitry Azovtsev <dmitry@azovtsev.com>"]
 edition = "2021"
 name = "liveplaya-kiosk"
-version = "0.3.6"
+version = "0.3.7"
 
 [dependencies]
 actix = {version = "0.13"}

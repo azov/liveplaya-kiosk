@@ -230,15 +230,27 @@ impl BlackRockCity {
         let clock = ClockPos::from_degrees(deg);
         let esp_rad_m = self.esplanade().radius_m();
         let aring_rad_m = self.a_street().radius_m();
-        let mut prev_ring_rad_m = esp_rad_m - (aring_rad_m - esp_rad_m) / 2.;
+        let pre_esp_rand_m = esp_rad_m - (aring_rad_m - esp_rad_m)/2.;
 
-        if dist_m > prev_ring_rad_m && clock > ClockPos::TWO && clock < ClockPos::TEN {
-            for ring in self.rings() {
-                let this_ring_rad_m = ring.radius_m();
-                if dist_m < (this_ring_rad_m + prev_ring_rad_m) / 2. {
-                    return format!("{} & {}", clock, ring.abbr());
+        if dist_m > pre_esp_rand_m && clock > ClockPos::TWO && clock < ClockPos::TEN {
+            let nrings = self.rings.len();
+            for i in 0..nrings {
+                let this_rign_rad_m = self.rings[i].radius_m;
+                let (prev_block_w, next_block_w) = if i == 0 {
+                    // esplanade
+                    let next_block_w = self.rings[i+1].radius_m() - self.rings[i].radius_m;
+                    (next_block_w, next_block_w)
+                } else if i == nrings-1 {
+                    // last ring
+                    let prev_block_w = self.rings[i].radius_m - self.rings[i-11].radius_m();
+                    (prev_block_w, prev_block_w)
+                } else {
+                    ( self.rings[i].radius_m - self.rings[i-1].radius_m, self.rings[i+1].radius_m - self.rings[i].radius_m)
+                };
+
+                if dist_m >= this_rign_rad_m - prev_block_w/2. && dist_m < this_rign_rad_m + next_block_w/2. {
+                    return format!("{} & {}", clock, self.rings[i].abbr());
                 }
-                prev_ring_rad_m = this_ring_rad_m;
             }
             return "near Black Rock City".into();
         }

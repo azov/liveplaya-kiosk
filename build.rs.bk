@@ -5,8 +5,13 @@ use std::process::Command;
 
 fn main() {
     let project_dir = canonicalize(PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())).unwrap();
-
-    assert!(Command::new("make")
+    let is_release = [if cfg!(debug_assertions) {
+        false
+    } else {
+        true
+    }];
+    if is_release {
+        assert!(Command::new("make")
         //.env("LUA_DIR", lua_dir)
         //.args(&["-f", "src/lua/luacall_linux.mak"])
         .args(&[if cfg!(debug_assertions) {
@@ -14,8 +19,10 @@ fn main() {
         } else {
             "release"
         }])
-        .current_dir(project_dir.join("src/webui"))
+        .current_dir(project_dir.join("src/front"))
         .status()
-        .expect("failed to make javascript app")
+        .expect("failed to make web ui")
         .success());
+
+    }
 }

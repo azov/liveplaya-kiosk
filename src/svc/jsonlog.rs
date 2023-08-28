@@ -5,7 +5,7 @@ use crate::{
 use serde::{de::DeserializeOwned, Serialize};
 use std::path::PathBuf;
 use tokio::{
-    fs::File,
+    fs::{File, OpenOptions},
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
 };
 
@@ -34,7 +34,7 @@ impl<T: std::fmt::Debug + Serialize + DeserializeOwned> JsonLog<T> {
         let writer = if let Some(writer) = &mut self.writer {
             writer
         } else {
-            let fd = File::options()
+            let fd = OpenOptions::new() //File::options()
                 .create(true)
                 .append(true)
                 .open(&self.path)

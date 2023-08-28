@@ -227,8 +227,8 @@ export function getMapStyle(
         type: "symbol",
         filter: [
           "any",
-          ["==", ["get", "brc"], "cstreet"],
-          ["==", ["get", "brc"], "streetcenter"],
+          ["==", ["get", "liveplaya"], "cstreet"],
+          ["==", ["get", "liveplaya"], "streetcenter"],
         ],
         minzoom: 14.5,
         metadata: {
@@ -248,61 +248,61 @@ export function getMapStyle(
           "text-size": ["interpolate", ["linear"], ["zoom"], 12.5, 8, 16, 16],
         },
         paint: {
-          "text-color": COLORS.bgfeature,
-          "text-opacity": 1,
-          "text-halo-width": 1.5,
-          "text-halo-color": COLORS.background,
-        },
-      },
-      {
-        id: "status-labels",
-        source: "mapdata", // rtfeatures
-        //minzoom: 14,
-        type: "symbol",
-        filter: ["has", "status"],
-        metadata: {},
-        layout: {
-          "text-field": ["get", "status"],
-          "text-optional": false,
-          "text-offset": [0, 3],
-          "text-anchor": "center",
-          "text-allow-overlap": true,
-          "text-size": 10,
-        },
-        paint: {
-          "text-color": COLORS.fgaccent1,
-          "text-opacity": 1,
-          "text-halo-width": 1.5,
-          "text-halo-color": COLORS.background,
-        },
-      },
-      {
-        id: "location-labels",
-        source: "mapdata", // rtfeatures
-        // minzoom: 14,
-        type: "symbol",
-        filter: ["has", "location"],
-        metadata: {
-          visibilityFlag: "hideEvt",
-          visibilityFlagInverted: true,
-        },
-        layout: {
-          "text-field": ["get", "location"],
-          "text-offset": [0, 3],
-          'text-anchor': 'center',
-          "text-allow-overlap": true,
-          // "text-size": ["match", ["get", "size"], "small", 12, "large", 16, 14],
-          "text-size": 11,
-        },
-        paint: {
-          "text-color": COLORS.fgcolor03,
+          "text-color": COLORS.fgcolor02,
           "text-opacity": 1,
           "text-halo-width": 1.5,
           "text-halo-color": COLORS.bgcolor01,
         },
       },
+      // {
+      //   id: "status-labels",
+      //   source: "mapdata", // rtfeatures
+      //   //minzoom: 14,
+      //   type: "symbol",
+      //   filter: ["has", "status"],
+      //   metadata: {},
+      //   layout: {
+      //     "text-field": ["get", "status"],
+      //     "text-optional": false,
+      //     "text-offset": [0, 3],
+      //     "text-anchor": "center",
+      //     "text-allow-overlap": true,
+      //     "text-size": 10,
+      //   },
+      //   paint: {
+      //     "text-color": COLORS.fgaccent1,
+      //     "text-opacity": 1,
+      //     "text-halo-width": 1.5,
+      //     "text-halo-color": COLORS.background,
+      //   },
+      // },
+      // {
+      //   id: "location-labels",
+      //   source: "mapdata", // rtfeatures
+      //   // minzoom: 14,
+      //   type: "symbol",
+      //   filter: ["has", "location"],
+      //   metadata: {
+      //     visibilityFlag: "hideEvt",
+      //     visibilityFlagInverted: true,
+      //   },
+      //   layout: {
+      //     "text-field": ["get", "location"],
+      //     "text-offset": [0, 3],
+      //     'text-anchor': 'center',
+      //     "text-allow-overlap": false,
+      //     // "text-size": ["match", ["get", "size"], "small", 12, "large", 16, 14],
+      //     "text-size": 11,
+      //   },
+      //   paint: {
+      //     "text-color": COLORS.fgcolor03,
+      //     "text-opacity": 1,
+      //     "text-halo-width": 1.5,
+      //     "text-halo-color": COLORS.bgcolor01,
+      //   },
+      // },
       {
-        id: "beacons",
+        id: "pois",
         source: "mapdata", // rtfeatures
         // minzoom: 14,
         type: "symbol",
@@ -312,6 +312,7 @@ export function getMapStyle(
           visibilityFlagInverted: true,
         },
         layout: {
+          "symbol-sort-key": ["get", "priority"],
           "icon-image": "tracker",
           "icon-size": [
             "match",
@@ -325,10 +326,10 @@ export function getMapStyle(
           "icon-rotate": ["get", "headingDeg"],
           //"icon-overlap": "always",
           //"symbol-sort-key": ["get", "order"],
-          "text-field": ["get", "name"],
+          "text-field": ["concat", ["get", "name"], "\n", ["get", "location"]],
           "text-optional": true,
           //'text-font': ['Open Sans Regular'],
-          "text-offset": [0, 1],
+          "text-offset": [0, 2],
           "text-anchor": "center",
           // "text-variable-anchor": ["top", "bottom", "top-left", "bottom-right"],
           "text-allow-overlap": false,
