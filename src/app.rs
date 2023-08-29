@@ -46,10 +46,12 @@ pub async fn run(
     }
 
     // APRS IS
-    tasks.spawn(aprs_is::read(
-        aprsis_server.unwrap_or(aprs_is::DEFAULT_SERVER.into()),
-        aprs_dta_tx.clone(),
-    ));
+    if let Some(server) =aprsis_server {
+        tasks.spawn(aprs_is::read(
+            server,
+            aprs_dta_tx.clone(),
+        ));    
+    }
 
     // Actix handles its own shutdown and we'll piggy back on that (also, it
     // doesn't seem to work as a spawned task, so we kinda have to)

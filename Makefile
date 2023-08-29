@@ -8,9 +8,6 @@ IMAGE:=tgwtf
 all: docker-build
 
 
-
-
-
 docker-build:
 	mkdir -p ${TARGET_DIR}
 	${DOCKER} build -t ${IMAGE} ${SOURCE_DIR}
